@@ -1,4 +1,5 @@
 import cv2
+import atexit
 from flask import Flask, Response, render_template, jsonify, request
 
 from workers.body_tracker import BodyTracker
@@ -25,16 +26,34 @@ current_tracker = None
 cap = None
 
 
+def cleanup():
+    """Очистка ресурсов при выходе"""
+    global current_tracker, cap
+    
+    print("Остановка трекера...")
+    if current_tracker is not None:
+        current_tracker.stop()
+    
+    print("Освобождение камеры...")
+    if cap is not None:
+        cap.release()
+    
+    print("Ресурсы освобождены")
+
+
 def start_tracker(mode_name):
     global current_tracker, current_mode
 
     if current_tracker is not None:
+        print(f"Остановка текущего трекера ({current_mode})...")
         current_tracker.stop()
 
+    print(f"Запуск трекера в режиме: {mode_name}")
     tracker_class = TRACKING_MODES[mode_name]
     current_tracker = tracker_class(cap)
     current_tracker.start()
     current_mode = mode_name
+    print(f"Трекер {mode_name} запущен и работает в фоновом режиме")
 
 
 def color_to_hex(color):
@@ -178,19 +197,58 @@ def tracking_mode():
     })
 
 
+@app.route('/status')
+def get_status():
+    """Возвращает статус системы и обработки видео"""
+    is_processing = current_tracker is not None and current_tracker.started
+    
+    return jsonify({
+        "processing": is_processing,
+        "mode": current_mode,
+        "camera_opened": cap is not None and cap.isOpened(),
+        "tracked_count": len(current_tracker.tracked_entities) if current_tracker else 0,
+        "message": "Система обрабатывает видео в режиме реального времени" if is_processing else "Обработка остановлена"
+    })
+
+
+
 # =========================
 # Запуск
 # =========================
 
 if __name__ == '__main__':
+    print("="*50)
+    print("Запуск сервера обработки видео")
+    print("="*50)
+    
+    # Открываем камеру
+    print("Открытие видеопотока с камеры...")
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         raise RuntimeError("Не удалось открыть видеопоток")
-
+    print("Камера успешно открыта")
+    
+    # Регистрируем функцию очистки при выходе
+    atexit.register(cleanup)
+    
+    # Запускаем трекер в фоновом режиме
+    print(f"Инициализация трекера (режим: {current_mode})...")
     start_tracker(current_mode)
-    app.run(
-        host='0.0.0.0',
-        port=5001,
-        debug=False,
-        threaded=True
-    )
+    
+    print("="*50)
+    print("Обработка видео запущена в фоновом режиме")
+    print("API доступны независимо от подключения к веб-интерфейсу")
+    print("Сервер запущен на http://0.0.0.0:5001")
+    print("="*50)
+    
+    try:
+        app.run(
+            host='0.0.0.0',
+            port=5001,
+            debug=False,
+            threaded=True
+        )
+    except KeyboardInterrupt:
+        print("\nПолучен сигнал остановки...")
+    finally:
+        cleanup()
