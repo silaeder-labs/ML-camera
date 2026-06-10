@@ -1,0 +1,96 @@
+body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    background: #f4f6f9;
+    margin: 0;
+}
+
+.page {
+    padding: 20px 12px 30px;
+}
+
+.video-wrap {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+}
+
+.video-wrap img {
+    border: 2px solid #333;
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
+
+.overlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+}
+
+.overlay.normal::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ff2b2b;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 6px rgba(255, 43, 43, 0.7);
+}
+
+.overlay.sniper {
+    background: url('/static/assets/lens.png') center / contain no-repeat;
+}
+
+.mode-buttons {
+    margin-top: 16px;
+}
+
+.tracking-buttons {
+    margin-top: 10px;
+}
+
+.mode-btn {
+    margin: 6px;
+    padding: 10px 18px;
+    font-size: 15px;
+    cursor: pointer;
+}
+
+.mode-btn.selected {
+    background: #111;
+    color: #fff;
+    border: 1px solid #000;
+}
+
+.buttons {
+    margin-top: 20px;
+    min-height: 44px;
+}
+
+.buttons button {
+    margin: 5px;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.buttons button.selected {
+    background: #2f6fed;
+    color: #fff;
+    border: 1px solid #1f55c2;
+}
+
+.info {
+    margin-top: 20px;
+    font-size: 20px;
+    font-weight: bold;
+}
