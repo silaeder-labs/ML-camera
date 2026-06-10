@@ -1,4 +1,5 @@
 import cv2
+import atexit
 from flask import Flask, Response, render_template, jsonify, request
 
 from workers.body_tracker import BodyTracker
@@ -12,6 +13,7 @@ app = Flask(
 )
 
 CAMERA_CURRENT_ANGLE = 0
+CAMERA_NEW_ROTATION = 0
 CAMERA_VIEW_ANGLE = 84 # 84 for macbook pro camera, 55 for studio camera
 
 TRACKING_MODES = {
@@ -24,16 +26,34 @@ current_tracker = None
 cap = None
 
 
+def cleanup():
+    """Очистка ресурсов при выходе"""
+    global current_tracker, cap
+    
+    print("Остановка трекера...")
+    if current_tracker is not None:
+        current_tracker.stop()
+    
+    print("Освобождение камеры...")
+    if cap is not None:
+        cap.release()
+    
+    print("Ресурсы освобождены")
+
+
 def start_tracker(mode_name):
     global current_tracker, current_mode
 
     if current_tracker is not None:
+        print(f"Остановка текущего трекера ({current_mode})...")
         current_tracker.stop()
 
+    print(f"Запуск трекера в режиме: {mode_name}")
     tracker_class = TRACKING_MODES[mode_name]
     current_tracker = tracker_class(cap)
     current_tracker.start()
     current_mode = mode_name
+    print(f"Трекер {mode_name} запущен и работает в фоновом режиме")
 
 
 def color_to_hex(color):
@@ -42,6 +62,14 @@ def color_to_hex(color):
 
     b, g, r = [max(0, min(255, int(c))) for c in color]
     return f"#{r:02x}{g:02x}{b:02x}"
+
+# =========================
+# API для поворота камеры
+# =========================
+
+@app.route('/rotation')
+def get_rotation():
+    return jsonify({"rotation": CAMERA_NEW_ROTATION})
 
 
 # =========================
@@ -107,6 +135,8 @@ def get_offset(track_id):
             "error": "ID not found"
         })
 
+    global CAMERA_NEW_ROTATION
+
     face = current_tracker.tracked_entities[track_id]
 
     screen_center_x = face["frame_width"] // 2
@@ -116,6 +146,8 @@ def get_offset(track_id):
     dy = face["center_y"] - screen_center_y
 
     angles_x = round((CAMERA_CURRENT_ANGLE + (face["center_x"] - screen_center_x) / (screen_center_x*2) * CAMERA_VIEW_ANGLE) % 360, 3)
+
+    CAMERA_NEW_ROTATION = angles_x
 
     return jsonify({
         "id": track_id,
@@ -165,19 +197,58 @@ def tracking_mode():
     })
 
 
+@app.route('/status')
+def get_status():
+    """Возвращает статус системы и обработки видео"""
+    is_processing = current_tracker is not None and current_tracker.started
+    
+    return jsonify({
+        "processing": is_processing,
+        "mode": current_mode,
+        "camera_opened": cap is not None and cap.isOpened(),
+        "tracked_count": len(current_tracker.tracked_entities) if current_tracker else 0,
+        "message": "Система обрабатывает видео в режиме реального времени" if is_processing else "Обработка остановлена"
+    })
+
+
+
 # =========================
 # Запуск
 # =========================
 
 if __name__ == '__main__':
+    print("="*50)
+    print("Запуск сервера обработки видео")
+    print("="*50)
+    
+    # Открываем камеру
+    print("Открытие видеопотока с камеры...")
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         raise RuntimeError("Не удалось открыть видеопоток")
-
+    print("Камера успешно открыта")
+    
+    # Регистрируем функцию очистки при выходе
+    atexit.register(cleanup)
+    
+    # Запускаем трекер в фоновом режиме
+    print(f"Инициализация трекера (режим: {current_mode})...")
     start_tracker(current_mode)
-    app.run(
-        host='0.0.0.0',
-        port=5001,
-        debug=False,
-        threaded=True
-    )
+    
+    print("="*50)
+    print("Обработка видео запущена в фоновом режиме")
+    print("API доступны независимо от подключения к веб-интерфейсу")
+    print("Сервер запущен на http://0.0.0.0:5001")
+    print("="*50)
+    
+    try:
+        app.run(
+            host='0.0.0.0',
+            port=5001,
+            debug=False,
+            threaded=True
+        )
+    except KeyboardInterrupt:
+        print("\nПолучен сигнал остановки...")
+    finally:
+        cleanup()

@@ -21,7 +21,7 @@ class BodyTracker(BaseTracker):
 
         return self.id_colors[track_id]
 
-    def generate_frames(self):
+    def _process_video(self):
         while self.cap.isOpened() and self.started:
             success, frame = self.cap.read()
 
@@ -120,22 +120,6 @@ class BodyTracker(BaseTracker):
 
             self.tracked_entities = current_people
 
-            ret, buffer = cv2.imencode(
-                '.jpg',
-                annotated_frame
-            )
-
-            if not ret:
-                continue
-
-            frame_bytes = buffer.tobytes()
-
-            yield (
-                b'--frame\r\n'
-                b'Content-Type: image/jpeg\r\n\r\n'
-                + frame_bytes +
-                b'\r\n'
-            )
-
-    def stop(self):
-        super().stop()
+            # Сохраняем обработанный кадр для видео потока
+            with self.frame_lock:
+                self.latest_frame = annotated_frame
