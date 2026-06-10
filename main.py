@@ -12,6 +12,7 @@ app = Flask(
 )
 
 CAMERA_CURRENT_ANGLE = 0
+CAMERA_NEW_ROTATION = 0
 CAMERA_VIEW_ANGLE = 84 # 84 for macbook pro camera, 55 for studio camera
 
 TRACKING_MODES = {
@@ -42,6 +43,14 @@ def color_to_hex(color):
 
     b, g, r = [max(0, min(255, int(c))) for c in color]
     return f"#{r:02x}{g:02x}{b:02x}"
+
+# =========================
+# API для поворота камеры
+# =========================
+
+@app.route('/rotation')
+def get_rotation():
+    return jsonify({"rotation": CAMERA_NEW_ROTATION})
 
 
 # =========================
@@ -107,6 +116,8 @@ def get_offset(track_id):
             "error": "ID not found"
         })
 
+    global CAMERA_NEW_ROTATION
+
     face = current_tracker.tracked_entities[track_id]
 
     screen_center_x = face["frame_width"] // 2
@@ -116,6 +127,8 @@ def get_offset(track_id):
     dy = face["center_y"] - screen_center_y
 
     angles_x = round((CAMERA_CURRENT_ANGLE + (face["center_x"] - screen_center_x) / (screen_center_x*2) * CAMERA_VIEW_ANGLE) % 360, 3)
+
+    CAMERA_NEW_ROTATION = angles_x
 
     return jsonify({
         "id": track_id,
