@@ -12,9 +12,9 @@ app = Flask(
     static_url_path="/static"
 )
 
-CAMERA_CURRENT_ANGLE = 0
-CAMERA_NEW_ROTATION = 0
-CAMERA_VIEW_ANGLE = 84 # 84 for macbook pro camera, 55 for studio camera
+CAMERA_CURRENT_ANGLES = [0, 0] # [x, y]
+CAMERA_NEW_ROTATIONS = [0, 0] # [x, y]
+CAMERA_VIEW_ANGLES = [84, 54] # 84, 54 for macbook pro camera, 55, ? for studio camera
 
 TRACKING_MODES = {
     "face": FaceTracker,
@@ -50,7 +50,11 @@ def start_tracker(mode_name):
 
     print(f"Запуск трекера в режиме: {mode_name}")
     tracker_class = TRACKING_MODES[mode_name]
-    current_tracker = tracker_class(cap)
+    current_tracker = tracker_class(
+        cap, 
+        camera_angles=CAMERA_CURRENT_ANGLES,
+        camera_view_angles=CAMERA_VIEW_ANGLES
+    )
     current_tracker.start()
     current_mode = mode_name
     print(f"Трекер {mode_name} запущен и работает в фоновом режиме")
@@ -69,7 +73,11 @@ def color_to_hex(color):
 
 @app.route('/rotation')
 def get_rotation():
-    return jsonify({"rotation": CAMERA_NEW_ROTATION})
+    if current_tracker is None:
+        return jsonify({"rotation": [0, 0]})
+    
+    rotation = current_tracker.get_camera_rotation()
+    return jsonify({"rotation": rotation})
 
 
 # =========================
@@ -135,7 +143,7 @@ def get_offset(track_id):
             "error": "ID not found"
         })
 
-    global CAMERA_NEW_ROTATION
+    global CAMERA_NEW_ROTATIONS
 
     face = current_tracker.tracked_entities[track_id]
 
@@ -145,9 +153,11 @@ def get_offset(track_id):
     dx = face["center_x"] - screen_center_x
     dy = face["center_y"] - screen_center_y
 
-    angles_x = round((CAMERA_CURRENT_ANGLE + (face["center_x"] - screen_center_x) / (screen_center_x*2) * CAMERA_VIEW_ANGLE) % 360, 3)
+    angles_x = round((CAMERA_CURRENT_ANGLES[0] + (face["center_x"] - screen_center_x) / (screen_center_x*2) * CAMERA_VIEW_ANGLES[0]) % 360, 3)
+    angles_y = round((CAMERA_CURRENT_ANGLES[1] + (face["center_y"] - screen_center_y) / (screen_center_y*2) * CAMERA_VIEW_ANGLES[1]) % 360, 3)
 
-    CAMERA_NEW_ROTATION = angles_x
+    CAMERA_NEW_ROTATIONS[0] = angles_x
+    CAMERA_NEW_ROTATIONS[1] = angles_y
 
     return jsonify({
         "id": track_id,
@@ -161,7 +171,8 @@ def get_offset(track_id):
         "dx": dx,
         "dy": dy, 
 
-        "angles_x": angles_x
+        "angles_x": angles_x,
+        "angles_y": angles_y
     })
 
 

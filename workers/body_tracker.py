@@ -1,14 +1,46 @@
 import cv2
 import numpy as np
+import os
 from ultralytics import YOLO
 
 from workers.base_tracker import BaseTracker
 
 
 class BodyTracker(BaseTracker):
-    def __init__(self, cap, model_path="body-tracking/yolo11n.pt"):
-        super().__init__(cap=cap)
+    def __init__(self, cap, model_path=None, camera_angles=None, camera_view_angles=None):
+        super().__init__(
+            cap=cap, 
+            camera_angles=camera_angles, 
+            camera_view_angles=camera_view_angles
+        )
+        
+        if model_path is None:
+            # Пробуем использовать локальную модель
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            local_model_path = os.path.join(base_dir, "body-tracking", "yolo11n.pt")
+            
+            if os.path.exists(local_model_path):
+                # Проверяем целостность файла перед загрузкой
+                try:
+                    print(f"Попытка загрузки локальной модели: {local_model_path}")
+                    self.model = YOLO(local_model_path)
+                    print("Локальная модель успешно загружена")
+                    return
+                except Exception as e:
+                    print(f"Ошибка при загрузке локальной модели: {e}")
+                    print("Удаляем поврежденный файл и загружаем модель заново...")
+                    try:
+                        os.remove(local_model_path)
+                    except:
+                        pass
+            
+            # Используем встроенное имя модели - Ultralytics автоматически скачает её
+            print("Загрузка модели yolo11n.pt (будет скачана автоматически при первом запуске)")
+            model_path = "yolo11n.pt"
+        
+        print(f"Загрузка модели YOLO: {model_path}")
         self.model = YOLO(model_path)
+        print("Модель успешно загружена")
 
     def get_color_for_id(self, track_id):
         if track_id not in self.id_colors:
@@ -119,6 +151,10 @@ class BodyTracker(BaseTracker):
                     )
 
             self.tracked_entities = current_people
+
+            # Автоматически обновляем углы поворота камеры
+            if current_people:
+                self.update_camera_rotation(frame.shape[1], frame.shape[0])
 
             # Сохраняем обработанный кадр для видео потока
             with self.frame_lock:
