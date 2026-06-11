@@ -194,7 +194,9 @@ async function updateOffset() {
             '<br>' +
             '<b>dy:</b> ' + data.dy +
             '<br><br>' +
-            '<b>angels_x:</b> ' + data.angles_x;
+            '<b>angels_x:</b> ' + data.angles_x +
+            '<br>' +
+            '<b>angels_y:</b> ' + data.angles_y;
     } catch (err) {
         console.log(err);
     }

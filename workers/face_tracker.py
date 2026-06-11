@@ -7,8 +7,12 @@ from workers.base_tracker import BaseTracker
 
 
 class FaceTracker(BaseTracker):
-    def __init__(self, cap):
-        super().__init__(cap=cap)
+    def __init__(self, cap, camera_angles=None, camera_view_angles=None):
+        super().__init__(
+            cap=cap, 
+            camera_angles=camera_angles, 
+            camera_view_angles=camera_view_angles
+        )
         self.model_path = hf_hub_download(
             repo_id="AdamCodd/YOLOv11n-face-detection",
             filename="model.pt"
@@ -132,6 +136,10 @@ class FaceTracker(BaseTracker):
                     )
 
             self.tracked_entities = current_faces
+
+            # Автоматически обновляем углы поворота камеры
+            if current_faces:
+                self.update_camera_rotation(frame.shape[1], frame.shape[0])
 
             # Сохраняем обработанный кадр для видео потока
             with self.frame_lock:
